@@ -1,11 +1,11 @@
 # Minecraft Manager (mcmanager)
 
-## ABOUT
+## About
 
 A bash framework for managing local Minecraft server and client software
 
 Link: [mcmanager project on Github](https://github.com/ancillarysoft/mcmanager)
-## USAGE
+## Installation
 
 With an example system username "exampleuser", the framework root directory should reside at the following location:
 
@@ -13,7 +13,7 @@ With an example system username "exampleuser", the framework root directory shou
 
 _... more information coming soon_
 
-## GENERAL REFERENCE
+## General Reference
 
 The project consists of three primary bases of operation:
 
@@ -23,14 +23,26 @@ The project consists of three primary bases of operation:
 
 _... more information coming soon_
 
-## TO-DO
+## External Reference
+
+[Setting up a server (by fandom.com)](https://minecraft.fandom.com/wiki/Tutorials/Setting_up_a_server)
+
+[How To Create a Minecraft Server on Ubuntu 22.04 (by DigitalOcean)](https://www.digitalocean.com/community/tutorials/how-to-create-a-minecraft-server-on-ubuntu-22-04)
+
+[Tuning the JVM – G1GC Garbage Collector Flags for Minecraft (by Aikar)](https://aikar.co/2018/07/02/tuning-the-jvm-g1gc-garbage-collector-flags-for-minecraft/)
+
+[Minecraft Server Control Script (project on Github)](https://minecraftservercontrol.github.io/docs/mscs)
+
+## To-Do List
 
  - Capture `git` verbosity via `gitctl.sh` script verbosity handler function
    - This will allow us to have all of that verbosity stored into local log files by default
  - Add message-type-related text coloring to all verbose messaging
  - Generate an official schema reference for `sourcelinks.json` files
+ - Integration with systemd for automated server startup etc.
+ - World backup and restore processes
 
-## ATTRIBUTION & LICENSE
+## Attribution & License
 
     Created by h8rt3rmin8r (161803398@email.tg) on 20220822
 
