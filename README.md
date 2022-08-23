@@ -2,7 +2,7 @@
 
 ## ABOUT
 
-    A bash focused framework for managing Minecraft server and client software
+    A bash framework for managing local Minecraft server and client software
 
 ## USAGE
 
@@ -16,13 +16,13 @@
 
     Created by h8rt3rmin8r (161803398@email.tg) on 20220822
 
-    Copyright 2022 [Ancillary Soft](https://github.com/ancillarysoft)
+    Copyright 2022 Ancillary Soft
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
     You may obtain a copy of the License at
 
-        [www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
+        http://www.apache.org/licenses/LICENSE-2.0
 
     Unless required by applicable law or agreed to in writing, software
     distributed under the License is distributed on an "AS IS" BASIS,
