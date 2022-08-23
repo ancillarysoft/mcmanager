@@ -229,7 +229,7 @@
         local ops_version=""
         local ops_version_fallback="1.19.2"
         local server_dir=""
-        local server_dir_fallback="${PROJ_D_SERVER_SRC}/${ops_version}"
+        local server_dir_fallback="${PROJ_D_SERVER_SRC}/${ops_version_fallback}"
         local server_jar=""
         local server_jar_fallback="${server_dir_fallback}/server.jar"
 
