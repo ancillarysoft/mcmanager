@@ -300,7 +300,7 @@
         fi
 
         ## Compose the final logging/verbosity strings and fire off the logging process
-        local lg_output="${lg_time}|${lg_ppid}|${lg_type}|${lg_name}|${lg_message}"
+        local lg_output="${lg_time}|${lg_ppid}|${lg_name}|${lg_type}|${lg_message}"
 
         if [[ "${lg_code:1:1}" == "Y" ]]; then
             case "${lg_color}" in
@@ -331,7 +331,7 @@
                     ;;
             esac
 
-            local vc_output="${lg_time}|${lg_ppid}|${vc_type}|${lg_name}|${vc_message}"
+            local vc_output="${lg_time}|${lg_ppid}|${lg_name}|${vc_type}|${vc_message}"
         fi
 
         case "${lg_code}" in

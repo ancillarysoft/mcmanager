@@ -1,13 +1,13 @@
 #! /usr/bin/env bash
 #>------------------------------------------------------------------------------
 #>
-#> [ .sh ]
+#> [ libtest.sh ]
 #>
-#>
+#>    Script for testing the local bash library (server.lib)
 #>
 #> USAGE:
 #>
-#>    .sh <OPTION>
+#>    libtest.sh <OPTION>
 #>
 #>    where "OPTION" is an optional input; and where "OPTION" is one of the
 #>    following:

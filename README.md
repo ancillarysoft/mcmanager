@@ -2,15 +2,33 @@
 
 ## ABOUT
 
-    A bash framework for managing local Minecraft server and client software
+A bash framework for managing local Minecraft server and client software
 
+Link: [mcmanager project on Github](https://github.com/ancillarysoft/mcmanager)
 ## USAGE
 
-    (coming soon)
+With an example system username "exampleuser", the framework root directory should reside at the following location:
 
-## REFERENCE
+```/home/exampleuser/data/gaming/minecraft/mcmanager```
 
- - [mcmanager project on Github](https://github.com/ancillarysoft/mcmanager)
+_... more information coming soon_
+
+## GENERAL REFERENCE
+
+The project consists of three primary bases of operation:
+
+  - `client`: Assets related to the Minecraft client software (the thing you play Minecraft with)
+  - `main`: Overarching system-wide libraries, logs, etc
+  - `server`: Assets related to the Minecraft server software
+
+_... more information coming soon_
+
+## TO-DO
+
+ - Capture `git` verbosity via `gitctl.sh` script verbosity handler function
+   - This will allow us to have all of that verbosity stored into local log files by default
+ - Add message-type-related text coloring to all verbose messaging
+ - Generate an official schema reference for `sourcelinks.json` files
 
 ## ATTRIBUTION & LICENSE
 

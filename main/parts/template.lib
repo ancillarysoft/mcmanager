@@ -1,0 +1,56 @@
+#! /usr/bin/env bash
+#_______________________________________________________________________________
+# Source detection
+#
+#   Reference: https://stackoverflow.com/a/2684300
+
+    is_sourced=N
+
+    [[ "${BASH_SOURCE[0]}" != "${0}" ]] && is_sourced=Y
+
+    if [[ "${is_sourced}" == "N" ]]; then
+        echo "$(date '+%s.%N')|$(printf '%07d' ${PPID})|main|E|This file cannot be executed directly (${0})" &>/dev/stderr
+        echo "$(date '+%s.%N')|$(printf '%07d' ${PPID})|main|I|Source this file instead (Example: source ${0})" &>/dev/stderr
+
+        exit 1
+    fi
+
+#_______________________________________________________________________________
+# Declare functions
+#
+
+    function _init() {
+        # The core library function called whenever the library is sourced
+        source "${main_lib}"
+
+        return $?
+    }
+
+#_______________________________________________________________________________
+# Declare variables and arrays
+#
+
+    ## redundant relative declarations (included for reference purposes)
+    ##
+        sh_path=$(readlink -f "${0}")
+        sh_file="${sh_path//*\/}"
+        sh_root="${sh_path%\/*}"
+        sh_base=$(readlink -f "${sh_root}/..")
+        sh_base_name="${sh_base//*\/}"
+        sh_logs="${sh_base}/logs"
+        lib_dir=$(readlink -f "${sh_root}/../lib")
+        lib_path=$(readlink -f "${lib_dir}/${sh_base_name}.lib")
+
+    ## path derivation for main.lib
+    ##
+        main_dir=$(readlink -f "${sh_base}/../main")
+        main_dir_lib="${main_dir}/lib"
+        main_lib="${main_dir_lib}/main.lib"
+
+#_______________________________________________________________________________
+# Execute operations
+#
+
+    _init
+
+#_______________________________________________________________________________

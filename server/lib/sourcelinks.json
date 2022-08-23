@@ -1,0 +1,15 @@
+{
+    "meta": {
+        "updated": "20220822"
+    },
+    "data": [
+        {
+            "version":"1.19.2",
+            "link":"https://piston-data.mojang.com/v1/objects/f69c284232d7c7580bd89a5a4931c3581eae1378/server.jar"
+        },
+        {
+            "version":"unknown",
+            "link":"https://piston-data.mojang.com/v1/objects/3565648cdd47ae15738fb804a95a659137d7cfd3/server.txt"
+        }
+    ]
+}

@@ -9,8 +9,8 @@
     [[ "${BASH_SOURCE[0]}" != "${0}" ]] && is_sourced=Y
 
     if [[ "${is_sourced}" == "N" ]]; then
-        echo "$(date '+%s%N')|${PPID}|E|main|This file cannot be executed directly" &>/dev/stderr
-        echo "$(date '+%s%N')|${PPID}|E|main|Source this file instead" &>/dev/stderr
+        echo "$(date '+%s.%N')|$(printf '%07d' ${PPID})|main|E|This file cannot be executed directly (${0})" &>/dev/stderr
+        echo "$(date '+%s.%N')|$(printf '%07d' ${PPID})|main|I|Source this file instead (Example: source ${0})" &>/dev/stderr
 
         exit 1
     fi
@@ -19,6 +19,117 @@
 # Declare functions
 #
 
+    function mcmanager_main_logger() {
+        # Verbosity handler function (accepts input pipe or direct input)
+        ##
+        ## Parses out empty lines (only if the input is an incoming pipe)
+        ## Prints all outputs to the terminal ( /dev/stdout <-- ¯\_(ツ)_/¯ )
+        ## Writes all outputs to the log file ( ../logs/{{shortdate}}.log )
+        ##
+        ## Optional arguments:
+        ##  - <TYPE> (e,i,s,w)
+        ##
+
+        local run_time="$(date '+%s.%N')"
+        local stack_complete=( $(echo ${FUNCNAME[*]}) )
+        local stack_last=${stack_complete[-1]}
+        local stack_string_a=$(sed 's/ /:/g' <<<"${FUNCNAME[@]}")
+        local stack_string_b="${stack_string_a#$FUNCNAME:}"
+        local stack_string="${stack_string_b%:main}"
+        local log_dir="${sh_logs}"
+        local log_name="${run_time:0:4}"
+        local log_file="${log_name}.log"
+        local log_path="${log_dir}/${log_file}"
+
+        ## Build the log/verbosity message: ${_a}|${_b}|${_c}|${_d}|${_e}
+        ##
+        ##  _a = Unix timestamp with miliseconds
+        ##  _b = Seven-place zerobuffered system process ID (${PPID})
+        ##  _c = Primary process name (usually the name of a bash script)
+        ##  _d = Type (E=error, I=info, S=success, W=warning)
+        ##  _e = Stack trace and message data
+        ##
+
+        local _a="${run_time}"
+        local _b=$(printf '%07d\n' "${PPID}")
+
+        ## If $sh_file is defined, then use that parent script file name
+        ## otherwise, fallback to using "main"
+
+        #if [[ -z "${sh_file+x}" ]]; then
+        if [[ "x${sh_file}" != "x" ]]; then
+            local _c="${sh_file}"
+        else
+            local _c="main"
+        fi
+
+        if [[ "x${1}" == "x" ]]; then
+            local _d=I
+        else
+            case "${1//-}" in
+                e|E|err|error)
+                    ## Log message type: error
+                    local _d=E
+                    shift 1
+                    ;;
+                i|I|info)
+                    ## Log message type: info
+                    local _d=I
+                    shift 1
+                    ;;
+                s|S|success)
+                    ## Log message type: success
+                    local _d=S
+                    shift 1
+                    ;;
+                w|W|warn|warning)
+                    ## Log message type: warning
+                    local _d=W
+                    shift 1
+                    ;;
+                ''|*)
+                    ## default log message type: info
+                    local _d=I
+                    ;;
+            esac
+        fi
+
+        if [ -t 0 ]; then
+            ## Input type: DIRECT
+            local _e="${stack_string}: $@"
+            local output="${_a}|${_b}|${_c}|${_d}|${_e}"
+
+            echo "${output}" \
+                | tee -a "${log_path}"
+        else
+            ## Input type: PIPE
+            local _e="${stack_string}:"
+
+            ts "${_a}|${_b}|${_c}|${_d}|${_e}" \
+                | sed -u '/[[:blank:]]\{1,\}$/d' \
+                | tee -a "${log_path}"
+        fi
+
+        return $?
+    }
+
+    function mcmanager_main_setup() {
+        # Create required directories
+        for i in "${PROJ_AD[@]}"; do
+            mkdir -p "${i}"
+        done
+        
+        return $?
+    }
+
+    function _init() {
+        # The core library function called whenever the library is sourced
+        mcmanager_main_setup
+
+        echo "Main library initialization completed for sub-process: ${0}" | mcmanager_main_logger -i
+
+        return $?
+    }
 
 #_______________________________________________________________________________
 # Declare variables and arrays
@@ -81,17 +192,41 @@
 
         PROJ_HOME="${un_mc}/${PROJ_NAME}"
         PROJ_D_CLIENT="${PROJ_HOME}/client"
-            PROJ_D_CLIENT_BIN=
-            PROJ_D_CLIENT_LOGS=
-            PROJ_D_CLIENT_SOURCE=
+            PROJ_D_CLIENT_BIN="${PROJ_D_CLIENT}/bin"
+            PROJ_D_CLIENT_LIB="${PROJ_D_CLIENT}/lib"
+            PROJ_D_CLIENT_LOGS="${PROJ_D_CLIENT}/logs"
+            PROJ_D_CLIENT_SRC="${PROJ_D_CLIENT}/src"
+        PROJ_D_MAIN="${PROJ_HOME}/main"
+            PROJ_D_MAIN_BIN="${PROJ_D_MAIN}/bin"
+            PROJ_D_MAIN_LIB="${PROJ_D_MAIN}/lib"
+            PROJ_D_MAIN_LOGS="${PROJ_D_MAIN}/logs"
+            PROJ_D_MAIN_PARTS="${PROJ_D_MAIN}/parts"
         PROJ_D_SERVER="${PROJ_HOME}/server"
-            PROJ_D_SERVER_BIN=
+            PROJ_D_SERVER_BIN="${PROJ_D_SERVER}/bin"
+            PROJ_D_SERVER_LIB="${PROJ_D_SERVER}/lib"
+            PROJ_D_SERVER_LOGS="${PROJ_D_SERVER}/logs"
+            PROJ_D_SERVER_SRC="${PROJ_D_SERVER}/src"
+
+        declare -a PROJ_AD_CLIENT=( "${PROJ_D_CLIENT}" "${PROJ_D_CLIENT_BIN}" "${PROJ_D_CLIENT_LIB}" "${PROJ_D_CLIENT_LOGS}" "${PROJ_D_CLIENT_SRC}" )
+        declare -a PROJ_AD_MAIN=( "${PROJ_D_MAIN}" "${PROJ_D_MAIN_BIN}" "${PROJ_D_MAIN_LIB}" "${PROJ_D_MAIN_LOGS}" "${PROJ_D_MAIN_PARTS}" )
+        declare -a PROJ_AD_SERVER=( "${PROJ_D_SERVER}" "${PROJ_D_SERVER_BIN}" "${PROJ_D_SERVER_LIB}" "${PROJ_D_SERVER_LOGS}" "${PROJ_D_SERVER_SRC}" )
+        declare -a PROJ_AD=( ${PROJ_AD_CLIENT[@]} ${PROJ_AD_MAIN[@]} ${PROJ_AD_SERVER[@]} )
+
+    ## redundant relative declarations (included for reference purposes)
+    ##
+
+        sh_path=$(readlink -f "${0}")
+        sh_root="${sh_path%\/*}"
+        sh_prnt="${sh_root%\/*}"
+        sh_logs="${sh_prnt}/logs"
+        sh_file="${sh_path//*\/}"
+        sh_name="${sh_file%.sh}"
 
 #_______________________________________________________________________________
 # Execute operations
 #
 
-    _main
+    _init
 
 #_______________________________________________________________________________
 ################################################################################

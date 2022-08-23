@@ -1,0 +1,376 @@
+#! /usr/bin/env bash
+#_______________________________________________________________________________
+# Source detection
+#
+#   Reference: https://stackoverflow.com/a/2684300
+
+    is_sourced=N
+
+    [[ "${BASH_SOURCE[0]}" != "${0}" ]] && is_sourced=Y
+
+    if [[ "${is_sourced}" == "N" ]]; then
+        echo "$(date '+%s.%N')|$(printf '%07d' ${PPID})|main|E|This file cannot be executed directly (${0})" &>/dev/stderr
+        echo "$(date '+%s.%N')|$(printf '%07d' ${PPID})|main|I|Source this file instead (Example: source ${0})" &>/dev/stderr
+
+        exit 1
+    fi
+
+#_______________________________________________________________________________
+# Declare functions
+#
+
+    function mcmanager_server_logger() {
+        # Verbosity handler function (accepts input pipe or direct input)
+        ##
+        ## Parses out empty lines (only if the input is an incoming pipe)
+        ## Prints all outputs to the terminal ( /dev/stdout <-- ¯\_(ツ)_/¯ )
+        ## Writes all outputs to the log file ( ../logs/{{shortdate}}.log )
+        ##
+        ## Optional arguments:
+        ##  - <TYPE> (e,i,s,w)
+        ##
+
+        local run_time="$(date '+%s.%N')"
+        local stack_complete=( $(echo ${FUNCNAME[*]}) )
+        local stack_last=${stack_complete[-1]}
+        local stack_string_a=$(sed 's/ /:/g' <<<"${FUNCNAME[@]}")
+        local stack_string_b="${stack_string_a#$FUNCNAME:}"
+        local stack_string="${stack_string_b%:main}"
+        local log_dir="${sh_logs}"
+        local log_name="${run_time:0:4}"
+        local log_file="${log_name}.log"
+        local log_path="${log_dir}/${log_file}"
+
+        ## Build the log/verbosity message: ${_a}|${_b}|${_c}|${_d}|${_e}
+        ##
+        ##  _a = Unix timestamp with miliseconds
+        ##  _b = Seven-place zerobuffered system process ID (${PPID})
+        ##  _c = Primary process name (usually the name of a bash script)
+        ##  _d = Type (E=error, I=info, S=success, W=warning)
+        ##  _e = Stack trace and message data
+        ##
+
+        local _a="${run_time}"
+        local _b=$(printf '%07d\n' "${PPID}")
+
+        ## If $sh_file is defined, then use that parent script file name
+        ## otherwise, fallback to using "main"
+
+        #if [[ -z "${sh_file+x}" ]]; then
+        if [[ "x${sh_file}" != "x" ]]; then
+            local _c="${sh_file}"
+        else
+            local _c="main"
+        fi
+
+        if [[ "x${1}" == "x" ]]; then
+            local _d=I
+        else
+            case "${1//-}" in
+                e|E|err|error)
+                    ## Log message type: error
+                    local _d=E
+                    shift 1
+                    ;;
+                i|I|info)
+                    ## Log message type: info
+                    local _d=I
+                    shift 1
+                    ;;
+                s|S|success)
+                    ## Log message type: success
+                    local _d=S
+                    shift 1
+                    ;;
+                w|W|warn|warning)
+                    ## Log message type: warning
+                    local _d=W
+                    shift 1
+                    ;;
+                ''|*)
+                    ## default log message type: info
+                    local _d=I
+                    ;;
+            esac
+        fi
+
+        if [ -t 0 ]; then
+            ## Input type: DIRECT
+            local _e="${stack_string}: $@"
+            local output="${_a}|${_b}|${_c}|${_d}|${_e}"
+
+            echo "${output}" \
+                | tee -a "${log_path}"
+        else
+            ## Input type: PIPE
+            local _e="${stack_string}:"
+
+            ts "${_a}|${_b}|${_c}|${_d}|${_e}" \
+                | sed -u '/[[:blank:]]\{1,\}$/d' \
+                | tee -a "${log_path}"
+        fi
+
+        return $?
+    }
+
+    function mcmanager_server_start() {
+        # Server start function
+
+        ## Required inputs: <type> <version>
+        ## where "type" is one of "ui" and "headless";
+        ## and where "version" is a valid version number string of the type: ##.##.##
+
+        function mcmanager_server_start_ui() {
+            # Start server with an interface
+
+            ## Basic parameters (Memory usage: 1024M)
+            ## java -Xmx1024M -Xms1024M -jar server.jar 2>&1 | mcmanager_server_logger
+            ## Reference: https://www.minecraft.net/en-us/download/server
+            ##
+            ## Advanced parameters (Memory usage: 10G)
+            ## Reference: https://mcflags.emc.gs
+
+            java \
+                -Xms10G \
+                -Xmx10G \
+                -XX:+UseG1GC \
+                -XX:+ParallelRefProcEnabled \
+                -XX:MaxGCPauseMillis=200 \
+                -XX:+UnlockExperimentalVMOptions \
+                -XX:+DisableExplicitGC \
+                -XX:+AlwaysPreTouch \
+                -XX:G1NewSizePercent=30 \
+                -XX:G1MaxNewSizePercent=40 \
+                -XX:G1HeapRegionSize=8M \
+                -XX:G1ReservePercent=20 \
+                -XX:G1HeapWastePercent=5 \
+                -XX:G1MixedGCCountTarget=4 \
+                -XX:InitiatingHeapOccupancyPercent=15 \
+                -XX:G1MixedGCLiveThresholdPercent=90 \
+                -XX:G1RSetUpdatingPauseTimePercent=5 \
+                -XX:SurvivorRatio=32 \
+                -XX:+PerfDisableSharedMem \
+                -XX:MaxTenuringThreshold=1 \
+                -Dusing.aikars.flags=https://mcflags.emc.gs \
+                -Daikars.new.flags=true \
+                -Xlog:gc*:logs/gc.log:time,uptime:filecount=5,filesize=1M \
+                -jar server.jar 2>&1 | mcmanager_server_logger
+
+            if [[ "${PIPESTATUS[@]}" =~ 1 ]]; then local run_ec=1; else local run_ec=0; fi
+
+            return $run_ec
+        }
+
+        function mcmanager_server_start_headless() {
+            # Start server without an interface
+
+            ## Basic parameters (Memory usage: 1024M)
+            ## java -Xmx1024M -Xms1024M -jar server.jar nogui 2>&1 | mcmanager_server_logger
+            ## Reference: https://www.minecraft.net/en-us/download/server
+            ##
+            ## Advanced parameters (Memory usage: 10G)
+            ## Reference: https://mcflags.emc.gs
+
+            java \
+                -Xms10G \
+                -Xmx10G \
+                -XX:+UseG1GC \
+                -XX:+ParallelRefProcEnabled \
+                -XX:MaxGCPauseMillis=200 \
+                -XX:+UnlockExperimentalVMOptions \
+                -XX:+DisableExplicitGC \
+                -XX:+AlwaysPreTouch \
+                -XX:G1NewSizePercent=30 \
+                -XX:G1MaxNewSizePercent=40 \
+                -XX:G1HeapRegionSize=8M \
+                -XX:G1ReservePercent=20 \
+                -XX:G1HeapWastePercent=5 \
+                -XX:G1MixedGCCountTarget=4 \
+                -XX:InitiatingHeapOccupancyPercent=15 \
+                -XX:G1MixedGCLiveThresholdPercent=90 \
+                -XX:G1RSetUpdatingPauseTimePercent=5 \
+                -XX:SurvivorRatio=32 \
+                -XX:+PerfDisableSharedMem \
+                -XX:MaxTenuringThreshold=1 \
+                -Dusing.aikars.flags=https://mcflags.emc.gs \
+                -Daikars.new.flags=true \
+                -Xlog:gc*:logs/gc.log:time,uptime:filecount=5,filesize=1M \
+                -jar server.jar nogui 2>&1 | mcmanager_server_logger
+
+            if [[ "${PIPESTATUS[@]}" =~ 1 ]]; then local run_ec=1; else local run_ec=0; fi
+
+            return $run_ec
+        }
+
+        function mcmanager_server_start_isinstalled() {
+            # Validate the local presence of a requested server version
+            local installed_ec=2
+
+            if [[ ! -f "${server_jar}" ]]; then
+                local installed_ec=1
+            else
+                local installed_ec=0
+            fi
+
+            return $installed_ec
+        }
+
+        function mcmanager_server_start_versionvalid() {
+            # Version number validation
+            grep --color=never -E '^([0-9]){1,}\.([0-9]){1,}\.([0-9]){1,}' <<<"${1}" &>/dev/null
+            return $?
+        }
+
+        local session_dt_a=$(date '+%s.%N')
+        local run_ec="2"
+        local ops_base="${FUNCNAME}"
+        local ops_type=""
+        local ops_run=""
+        local ops_version=""
+        local ops_version_fallback="1.19.2"
+        local server_dir=""
+        local server_dir_fallback="${PROJ_D_SERVER_SRC}/${ops_version}"
+        local server_jar=""
+        local server_jar_fallback="${server_dir_fallback}/server.jar"
+
+        while [[ "$#" -gt 0 ]]; do
+            # parse inputs
+            local i_n="${1}"
+            local in_mod="${i_n//-}"
+
+            case "${in_mod}" in
+                h|headless)
+                    # Define operation type: HEADLESS
+
+                    local ops_type=headless
+                    local ops_run="${ops_base}_${ops_type}"
+
+                    echo "Detected ops_type specifier: ${ops_type}" | mcmanager_server_logger -i
+                    ;;
+                u|ui)
+                    # Define operation type: UI
+
+                    local ops_type=ui
+                    local ops_run="${ops_base}_${ops_type}"
+
+                    echo "Detected ops_type specifier: ${ops_type}" | mcmanager_server_logger -i
+                    ;;
+                v=*|version=*)
+                    # Define server version
+
+                    local in_version="${i_n//*[=]}"
+                    local in_version_test=$(mcmanager_server_start_versionvalid "${in_version}"; echo $?)
+
+                    if [[ "${in_version_test}" -eq 0 ]]; then
+                        local ops_version="${in_version}"
+                        local server_dir="${PROJ_D_SERVER_SRC}/${ops_version}"
+                        local server_jar="${server_dir}/server.jar"
+
+                        echo "Detected ops_version specifier: ${ops_version}" | mcmanager_server_logger -i
+                    else
+                        echo "ERROR: Version value input was malformed (${1})" | mcmanager_server_logger -e
+                        echo "WARNING: Falling back to default version: ${ops_version_fallback}" | mcmanager_server_logger -w
+                    fi
+                    ;;
+                *)
+                    echo "ERROR: Unknown input type detected; ignoring input (${1})" | mcmanager_server_logger -e
+                    ;;
+            esac
+
+            shift 1
+        done
+
+        if [[ "x${ops_version}" == "x" ]]; then
+            ## version is missing; run with fallback values
+            echo "WARNING: No server version values were detected in inputs; Running with default version: ${ops_version_fallback}" | mcmanager_server_logger -w
+
+            local ops_version="${ops_version_fallback}"
+            local server_dir="${server_dir_fallback}"
+            local server_jar="${server_jar_fallback}"
+        fi
+
+        if [[ "x${ops_type}" == "x" ]]; then
+            ## if operation type is undefined then kill the funciton
+            local run_ec=1
+
+            echo "ERROR: Operation type is UNDEFINED (Requires: 'headless' or 'ui')" | mcmanager_server_logger -e
+            echo "Terminating running processes (exit code: ${run_ec})" | mcmanager_server_logger -i
+        else
+            ## operation type is defined
+
+            local installed_check=$(mcmanager_server_start_isinstalled &>/dev/null; echo $?)
+
+            if [[ "${installed_check}" -ne 0 ]]; then
+                ## required .jar file NOT FOUND
+
+                echo "ERROR: Required jar file not found (${server_jar})" | mcmanager_server_logger -e
+                echo "Make sure the requested server version is installed in server/src/<VERSION> and try again" | mcmanager_server_logger -i
+            
+                local run_ec=$installed_check
+            else
+                ## required .jar file FOUND
+
+                echo "SUCCESS: Located required jar file (${server_jar})" | mcmanager_server_logger -s
+                echo "Starting Minecraft server version ${ops_version}" | mcmanager_server_logger -i
+
+                ## START THE SERVER
+
+                cd "${server_dir}"
+                mkdir -p logs
+                touch logs/gc.log
+                $ops_run
+
+                local run_ec=$?
+                local session_dt_b=$(date '+%s.%N')
+
+                echo "Closing server session (exit code ${run_ec})" | mcmanager_server_logger -i
+                echo "Session start time ..... ${session_dt_a}" | mcmanager_server_logger -i
+                echo "Session finish time .... ${session_dt_b}" | mcmanager_server_logger -i
+
+                cd "${here_now}"
+            fi
+        fi
+
+        return $run_ec
+    }
+
+    function _init() {
+        # The core library function called whenever the library is sourced
+        source "${main_lib}"
+
+        echo "server.lib initialization completed for sub-process: ${0}" | mcmanager_server_logger -i
+
+        return $?
+    }
+
+#_______________________________________________________________________________
+# Declare variables and arrays
+#
+
+    ## redundant relative declarations (included for reference purposes)
+    ##
+        sh_path=$(readlink -f "${0}")
+        sh_file="${sh_path//*\/}"
+        sh_root="${sh_path%\/*}"
+        sh_base=$(readlink -f "${sh_root}/..")
+        sh_base_name="${sh_base//*\/}"
+        sh_logs="${sh_base}/logs"
+        lib_dir=$(readlink -f "${sh_root}/../lib")
+        lib_path=$(readlink -f "${lib_dir}/${sh_base_name}.lib")
+
+    ## path derivation for main.lib
+    ##
+        main_dir=$(readlink -f "${sh_base}/../main")
+        main_dir_lib="${main_dir}/lib"
+        main_lib="${main_dir_lib}/main.lib"
+
+    ## local base operations variables
+    ##
+
+#_______________________________________________________________________________
+# Execute operations
+#
+
+    _init
+
+#_______________________________________________________________________________
