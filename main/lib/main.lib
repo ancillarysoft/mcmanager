@@ -118,8 +118,109 @@
         for i in "${PROJ_AD[@]}"; do
             mkdir -p "${i}"
         done
+
+        return $?
+    }
+
+    function mcmanager_main_setup_depends_check() {
+        local check_e_c=0
+
+        #declare -a core_depends=( $(mcmanager_main_setup_depends_list_base) )
+        declare -a core_depends=( $(mcmanager_main_setup_depends_list_all) )
+        declare -a depends_missing=()
+        declare -a depends_missing_tmp=()
+        
+        for i in "${core_depends[@]}"; do
+
+            local dep_command="${i//[:]*}"
+            local dep_package="${i//*[:]}"
+            local dep_check=$(which "${dep_command}" &>/dev/null; echo $?)
+            local dep_check_alt_a=$(type "${dep_command}" &>/dev/null; echo $?)
+
+            if [[ "${dep_check}" -ne 0 ]]; then
+                ## attempt an alternative method of discovery
+                if [[ "${dep_check_alt_a}" -ne 0 ]]; then
+                    mcmanager_main_logger --error "ERROR: Required command not found: ${dep_command}"
+
+                    depends_missing_tmp+=( "${dep_package}" )
+                
+                    local check_e_c=1
+                fi
+            fi
+        done
+
+        if [[ "${check_e_c}" == "1" ]]; then
+            declare -a depends_missing=( $(echo ${depends_missing_tmp[@]} | tr ' ' '\n' | sort | uniq) )
+            
+            mcmanager_main_logger --info "Please install the following software packages: ${depends_missing[@]}"
+        else
+            mcmanager_main_logger --success "SUCCESS: All required software packages were found"
+        fi
+
+        unset core_depends
+        unset depends_missing
+        unset depends_missing_tmp
+
+        return $check_e_c
+    }
+
+    function mcmanager_main_setup_depends_list_all() {
+        grep -Ev '^(#) ' "${PROJ_DEPENDSLIST}" \
+            | sed 's/^#//;/^$/d'
         
         return $?
+    }
+
+    function mcmanager_main_setup_depends_list_base() {
+        grep -Ev '^(#)' "${PROJ_DEPENDSLIST}" \
+            | sed '/^$/d'
+        
+        return $?
+    }
+
+    function mcmanager_main_setup_depends_list_builtin() {
+        grep --color=never -E '^(#)[a-zA-Z0-9]' "${PROJ_DEPENDSLIST}" \
+            | sed 's/^#//'
+
+        return $?
+    }
+
+    function mcmanager_main_setup_depends_printmissing() {
+        local check_e_c=0
+
+        #declare -a core_depends=( $(mcmanager_main_setup_depends_list_base) )
+        declare -a core_depends=( $(mcmanager_main_setup_depends_list_all) )
+        declare -a depends_missing=()
+        declare -a depends_missing_tmp=()
+        
+        for i in "${core_depends[@]}"; do
+
+            local dep_command="${i//[:]*}"
+            local dep_package="${i//*[:]}"
+            local dep_check=$(which "${dep_command}" &>/dev/null; echo $?)
+            local dep_check_alt_a=$(type "${dep_command}" &>/dev/null; echo $?)
+
+            if [[ "${dep_check}" -ne 0 ]]; then
+                ## attempt an alternative method of discovery
+                if [[ "${dep_check_alt_a}" -ne 0 ]]; then
+                    depends_missing_tmp+=( "${dep_package}" )
+                
+                    local check_e_c=1
+                fi
+            fi
+        done
+
+        if [[ "${check_e_c}" == "1" ]]; then
+            declare -a depends_missing=( $(echo ${depends_missing_tmp[@]} | tr ' ' '\n' | sort | uniq) )
+
+            echo "${depends_missing[@]}"
+        fi
+
+        unset core_depends
+        unset depends_missing
+        unset depends_missing_tmp
+
+        return $check_e_c
     }
 
     function _init() {
@@ -194,8 +295,12 @@
         PROJ_D_CLIENT="${PROJ_HOME}/client"
             PROJ_D_CLIENT_BIN="${PROJ_D_CLIENT}/bin"
             PROJ_D_CLIENT_LIB="${PROJ_D_CLIENT}/lib"
+            PROJ_D_CLIENT_LIVE="${PROJ_D_CLIENT}/live"
             PROJ_D_CLIENT_LOGS="${PROJ_D_CLIENT}/logs"
             PROJ_D_CLIENT_SRC="${PROJ_D_CLIENT}/src"
+                PROJ_D_CLIENT_SRC_FORGE="${PROJ_D_CLIENT_SRC}/forge"
+                PROJ_D_CLIENT_SRC_MCLAUNCHER="${PROJ_D_CLIENT_SRC}/minecraft-launcher"
+                PROJ_D_CLIENT_SRC_OPTIFINE="${PROJ_D_CLIENT_SRC}/optifine"
         PROJ_D_MAIN="${PROJ_HOME}/main"
             PROJ_D_MAIN_BIN="${PROJ_D_MAIN}/bin"
             PROJ_D_MAIN_LIB="${PROJ_D_MAIN}/lib"
@@ -206,8 +311,12 @@
             PROJ_D_SERVER_LIB="${PROJ_D_SERVER}/lib"
             PROJ_D_SERVER_LOGS="${PROJ_D_SERVER}/logs"
             PROJ_D_SERVER_SRC="${PROJ_D_SERVER}/src"
+        PROJ_LIB_CLIENT="${PROJ_D_CLIENT_LIB}/client.lib"
+        PROJ_LIB_MAIN="${PROJ_D_MAIN_LIB}/main.lib"
+        PROJ_LIB_SERVER="${PROJ_D_SERVER_LIB}/server.lib"
+        PROJ_DEPENDSLIST="${PROJ_D_MAIN_LIB}/depends.list"
 
-        declare -a PROJ_AD_CLIENT=( "${PROJ_D_CLIENT}" "${PROJ_D_CLIENT_BIN}" "${PROJ_D_CLIENT_LIB}" "${PROJ_D_CLIENT_LOGS}" "${PROJ_D_CLIENT_SRC}" )
+        declare -a PROJ_AD_CLIENT=( "${PROJ_D_CLIENT}" "${PROJ_D_CLIENT_BIN}" "${PROJ_D_CLIENT_LIB}" "${PROJ_D_CLIENT_LIVE}" "${PROJ_D_CLIENT_LOGS}" "${PROJ_D_CLIENT_SRC}" "${PROJ_D_CLIENT_SRC_FORGE}" "${PROJ_D_CLIENT_SRC_MCLAUNCHER}" "${PROJ_D_CLIENT_SRC_OPTIFINE}" )
         declare -a PROJ_AD_MAIN=( "${PROJ_D_MAIN}" "${PROJ_D_MAIN_BIN}" "${PROJ_D_MAIN_LIB}" "${PROJ_D_MAIN_LOGS}" "${PROJ_D_MAIN_PARTS}" )
         declare -a PROJ_AD_SERVER=( "${PROJ_D_SERVER}" "${PROJ_D_SERVER_BIN}" "${PROJ_D_SERVER_LIB}" "${PROJ_D_SERVER_LOGS}" "${PROJ_D_SERVER_SRC}" )
         declare -a PROJ_AD=( ${PROJ_AD_CLIENT[@]} ${PROJ_AD_MAIN[@]} ${PROJ_AD_SERVER[@]} )

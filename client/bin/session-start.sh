@@ -1,13 +1,15 @@
 #! /usr/bin/env bash
 #>------------------------------------------------------------------------------
 #>
-#> [ libtest.sh ]
+#> [ session-start.sh ]
 #>
-#>    Script for testing the local bash library (client.lib)
+#>    Start a minecraft-launcher session
+#>
+#>    No inputs are required when running this script
 #>
 #> USAGE:
 #>
-#>    libtest.sh <OPTION>
+#>    session-start.sh <OPTION>
 #>
 #>    where "OPTION" is an optional input; and where "OPTION" is one of the
 #>    following:
@@ -65,7 +67,7 @@
     fi
 
     ## Run library function and capture the subsequent exit code
-
+    mcmanager_client_session_start
     e_c=$?
 
     exit $e_c

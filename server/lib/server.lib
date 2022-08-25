@@ -154,7 +154,10 @@
                 -Dusing.aikars.flags=https://mcflags.emc.gs \
                 -Daikars.new.flags=true \
                 -Xlog:gc*:logs/gc.log:time,uptime:filecount=5,filesize=1M \
-                -jar server.jar 2>&1 | mcmanager_server_logger
+                -jar server.jar --bonusChest 2>&1 \
+                    | ts "%.s000|${_b}|${_c}|${_d}|${_e}" \
+                    | sed -u '/[[:blank:]]\{1,\}$/d' \
+                    | tee -a "${log_path}"
 
             if [[ "${PIPESTATUS[@]}" =~ 1 ]]; then local run_ec=1; else local run_ec=0; fi
 
@@ -195,7 +198,10 @@
                 -Dusing.aikars.flags=https://mcflags.emc.gs \
                 -Daikars.new.flags=true \
                 -Xlog:gc*:logs/gc.log:time,uptime:filecount=5,filesize=1M \
-                -jar server.jar nogui 2>&1 | mcmanager_server_logger
+                -jar server.jar nogui --bonusChest 2>&1 \
+                    | ts "%.s000|${_b}|${_c}|${_d}|${_e}" \
+                    | sed -u '/[[:blank:]]\{1,\}$/d' \
+                    | tee -a "${log_path}"
 
             if [[ "${PIPESTATUS[@]}" =~ 1 ]]; then local run_ec=1; else local run_ec=0; fi
 
@@ -232,6 +238,31 @@
         local server_dir_fallback="${PROJ_D_SERVER_SRC}/${ops_version_fallback}"
         local server_jar=""
         local server_jar_fallback="${server_dir_fallback}/server.jar"
+
+        # Build verbosity and logging strings
+        # Sending piped outputs through the logger function results in non-updating
+        # date-time strings in log and verbosity messages.
+
+        local run_time="$(date '+%s.%N')"
+        local log_dir="${sh_logs}"
+        local log_name="${run_time:0:4}"
+        local log_file="${log_name}.log"
+        local log_path="${log_dir}/${log_file}"
+
+        ## Build the log/verbosity message: ${_a}|${_b}|${_c}|${_d}|${_e}
+        ##
+        ##  _a = Unix timestamp with miliseconds
+        ##  _b = Seven-place zerobuffered system process ID (${PPID})
+        ##  _c = Primary process name (usually the name of a bash script)
+        ##  _d = Type (E=error, I=info, S=success, W=warning)
+        ##  _e = Stack trace and/or message data
+        ##
+
+        #local _a="${run_time}"  ##==> auto filled in real time by ts
+        local _b=$(printf '%07d\n' "${PPID}")
+        local _c="${sh_file}"
+        local _d=I
+        local _e="server.jar:"
 
         while [[ "$#" -gt 0 ]]; do
             # parse inputs
@@ -338,7 +369,7 @@
         # The core library function called whenever the library is sourced
         source "${main_lib}"
 
-        echo "server.lib initialization completed for sub-process: ${0}" | mcmanager_server_logger -i
+        mcmanager_server_logger -i "server.lib initialization completed for sub-process: ${0}"
 
         return $?
     }

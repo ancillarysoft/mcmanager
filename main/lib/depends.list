@@ -42,6 +42,7 @@ gzip:gzip
 jq:jq
 #kill:kill
 #ls:ls
+minecraft-launcher:minecraft-launcher
 #mkdir:mkdir
 #mv:mv
 parallel:parallel

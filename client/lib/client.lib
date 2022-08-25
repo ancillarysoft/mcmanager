@@ -19,9 +19,436 @@
 # Declare functions
 #
 
+    function mcmanager_client_logger() {
+        # Verbosity handler function (accepts input pipe or direct input)
+        ##
+        ## Parses out empty lines (only if the input is an incoming pipe)
+        ## Prints all outputs to the terminal ( /dev/stdout <-- ¯\_(ツ)_/¯ )
+        ## Writes all outputs to the log file ( ../logs/{{shortdate}}.log )
+        ##
+        ## Optional arguments:
+        ##  - <TYPE> (e,i,s,w)
+        ##
+
+        local run_time="$(date '+%s.%N')"
+        local stack_complete=( $(echo ${FUNCNAME[*]}) )
+        local stack_last=${stack_complete[-1]}
+        local stack_string_a=$(sed 's/ /:/g' <<<"${FUNCNAME[@]}")
+        local stack_string_b="${stack_string_a#$FUNCNAME:}"
+        local stack_string="${stack_string_b%:main}"
+        local log_dir="${sh_logs}"
+        local log_name="${run_time:0:4}"
+        local log_file="${log_name}.log"
+        local log_path="${log_dir}/${log_file}"
+
+        ## Build the log/verbosity message: ${_a}|${_b}|${_c}|${_d}|${_e}
+        ##
+        ##  _a = Unix timestamp with miliseconds
+        ##  _b = Seven-place zerobuffered system process ID (${PPID})
+        ##  _c = Primary process name (usually the name of a bash script)
+        ##  _d = Type (E=error, I=info, S=success, W=warning)
+        ##  _e = Stack trace and message data
+        ##
+
+        local _a="${run_time}"
+        local _b=$(printf '%07d\n' "${PPID}")
+
+        ## If $sh_file is defined, then use that parent script file name
+        ## otherwise, fallback to using "main"
+
+        #if [[ -z "${sh_file+x}" ]]; then
+        if [[ "x${sh_file}" != "x" ]]; then
+            local _c="${sh_file}"
+        else
+            local _c="main"
+        fi
+
+        if [[ "x${1}" == "x" ]]; then
+            local _d=I
+        else
+            case "${1//-}" in
+                e|E|err|error)
+                    ## Log message type: error
+                    local _d=E
+                    shift 1
+                    ;;
+                i|I|info)
+                    ## Log message type: info
+                    local _d=I
+                    shift 1
+                    ;;
+                s|S|success)
+                    ## Log message type: success
+                    local _d=S
+                    shift 1
+                    ;;
+                w|W|warn|warning)
+                    ## Log message type: warning
+                    local _d=W
+                    shift 1
+                    ;;
+                ''|*)
+                    ## default log message type: info
+                    local _d=I
+                    ;;
+            esac
+        fi
+
+        if [ -t 0 ]; then
+            ## Input type: DIRECT
+            local _e="${stack_string}: $@"
+            local output="${_a}|${_b}|${_c}|${_d}|${_e}"
+
+            echo "${output}" \
+                | tee -a "${log_path}"
+        else
+            ## Input type: PIPE
+            local _e="${stack_string}:"
+
+            ts "${_a}|${_b}|${_c}|${_d}|${_e}" \
+                | sed -u '/[[:blank:]]\{1,\}$/d' \
+                | tee -a "${log_path}"
+        fi
+
+        return $?
+    }
+
+    function mcmanager_client_session_meta_base() {
+        # Print the basic data stored in a new sessionmeta file
+        echo "createdTime: $(date '+%s')"
+        echo "previouslyUsed: false"
+        echo "lastUsedTime: null"
+        echo "isActive: false"
+
+        return $?
+    }
+
+    function mcmanager_client_session_meta_read() {
+        # Read the sessionmeta of a specified minecraft-launcher session
+        ## Required input: <session_number>
+        ## Optional input: <sessionmeta_key>
+
+        function mcmanager_client_session_meta_read_all() {
+            cat "${read_file}" \
+                | grep --color=never -E '.'
+
+            return $?
+        }
+
+        function mcmanager_client_session_meta_read_key() {
+            cat "${read_file}" \
+                | grep --color=never -E "^${read_key}[:]" \
+                | sed -E 's/^.*\: ?//' \
+                | grep --color=never -E '.'
+
+            return $?
+        }
+
+        local read_ec=2
+        local read_target="${1}"
+        local read_target_test=$(grep --color=never -E '^[1-9]$' <<<"${read_target}" &>/dev/null; echo $?)
+        local read_file="${read_target}.sessionmeta"
+        local read_key="${2}"
+
+        if [[ "${read_target_test}" -ne 0 ]]; then
+            mcmanager_client_logger -e "ERROR: Missing or malformed session reference detected (${1})"
+
+            return 1
+        fi
+
+        cd "${PROJ_D_CLIENT_LIVE}"
+
+        if [[ ! -f "${read_file}" ]]; then
+            local read_file_path=$(readlink -f "${read_file}")
+
+            mcmanager_client_logger -e "ERROR: Required session metadata file not found (${read_file_path})"
+
+            cd "${here_now}"
+            return 1
+        fi
+
+        if [[ "x${read_key}" == "x" ]]; then
+            mcmanager_client_session_meta_read_all
+
+            local read_ec=$?
+        else
+            mcmanager_client_session_meta_read_key
+
+            local read_ec=$?
+        fi
+
+        cd "${here_now}"
+
+        return $read_ec
+    }
+
+    function mcmanager_client_session_meta_write() {
+        # Write a value into a specified key for a specified minecraft-launcher session
+        ## Required input: <session_number>
+        ## Required input: <sessionmeta_key>
+        ## Required input: <sessionmeta_value>
+
+        function mcmanager_client_session_meta_write_value() {
+            local input_line="${write_key}: ${write_value}"
+            local input_line_regex="${input_line//:/\\:}"
+
+            sed -i -E "s/^$write_key\:.*/$input_line/" "${write_file}"
+
+            return $?
+        }
+
+        local write_ec=2
+        local write_target="${1}"
+        local write_target_test=$(grep --color=never -E '^[1-9]$' <<<"${write_target}" &>/dev/null; echo $?)
+        local write_file="${write_target}.sessionmeta"
+        local write_key="${2}"
+        local write_value="${3}"
+
+        if [[ "${write_target_test}" -ne 0 ]]; then
+            mcmanager_client_logger -e "ERROR: Missing or malformed session reference detected (${1})"
+
+            return 1
+        fi
+
+        if [[ "$#" -lt 3 ]]; then
+            mcmanager_client_logger -e "ERROR: Missing one or more required inputs (Requires: <session_number> <sessionmeta_key> <sessionmeta_value>)"
+            return 1
+        fi
+
+        cd "${PROJ_D_CLIENT_LIVE}"
+
+        if [[ ! -f "${write_file}" ]]; then
+            local write_file_path=$(readlink -f "${write_file}")
+
+            mcmanager_client_logger -e "ERROR: Required session metadata file not found (${write_file_path})"
+
+            cd "${here_now}"
+            return 1
+        fi
+
+        mcmanager_client_session_meta_write_value
+
+        local write_ec=$?
+
+        cd "${here_now}"
+
+        return $write_ec
+    }
+
+    function mcmanager_client_session_start() {
+        # Start a minecraft-launcher session
+        ## Defaults to the lowest available session number not currently running
+        ## No inputs required/allowed
+
+        function mcmanager_client_session_start_init() {
+            minecraft-launcher --lockDir "${session_lock}" --workDir "${session_work}" 2>&1 \
+                | ts "%.s000|${_b}|${_c}|${_d}|${_e}" \
+                | sed -u '/[[:blank:]]\{1,\}$/d' \
+                | tee -a "${log_path}"
+
+            if [[ "${PIPESTATUS[@]}" =~ 1 ]]; then local run_ec=1; else local run_ec=0; fi
+
+            return $run_ec
+        }
+
+        local session_dt_a=$(date '+%s.%N')
+        local target_session=""
+        local start_ec=2
+
+        # Build verbosity and logging strings
+        # Sending piped outputs through the logger function results in non-updating
+        # date-time strings in log and verbosity messages.
+        local run_time="$(date '+%s.%N')"
+        local log_dir="${sh_logs}"
+        local log_name="${run_time:0:4}"
+        local log_file="${log_name}.log"
+        local log_path="${log_dir}/${log_file}"
+        ## Build the log/verbosity message: ${_a}|${_b}|${_c}|${_d}|${_e}
+        ##
+        ##  _a = Unix timestamp with miliseconds
+        ##  _b = Seven-place zerobuffered system process ID (${PPID})
+        ##  _c = Primary process name (usually the name of a bash script)
+        ##  _d = Type (E=error, I=info, S=success, W=warning)
+        ##  _e = Stack trace and/or message data
+        ##
+        #local _a="${run_time}"  ##==> auto filled in real time by ts
+        local _b=$(printf '%07d\n' "${PPID}")
+        local _c="${sh_file}"
+        local _d=I
+        local _e="minecraft-launcher:"
+
+        cd "${PROJ_D_CLIENT_LIVE}"
+
+        for i in "${live_sessions[@]}"; do
+            local isactive_value=$(mcmanager_client_session_meta_read "${i}" "isActive")
+
+            if [[ "${isactive_value}" == "false" ]]; then
+                local target_session="${i}"
+
+                break
+            fi
+        done
+
+        if [[ "x${target_session}" == "x" ]]; then
+            mcmanager_client_logger -e "ERROR: No inactive minecraft-launcher sessions available"
+
+            return 1
+        else
+            mcmanager_client_logger -i "Found inactive minecraft-launcher session: ${target_session}"
+        fi
+
+        local session_lock=$(readlink -f "${target_session}")
+        local session_work=$(readlink -f "${target_session}/work")
+
+        mcmanager_client_logger -i "Setting minecraft-launcher parameter: lockDir=${session_lock}"
+        mcmanager_client_logger -i "Setting minecraft-launcher parameter: workDir=${session_work}"
+        mcmanager_client_logger -i "Setting sessionmeta to an active state and starting the session ..."
+
+        mcmanager_client_session_meta_write "${target_session}" "previouslyUsed" "true"
+        mcmanager_client_session_meta_write "${target_session}" "lastUsedTime" "$(date '+%s')"
+        mcmanager_client_session_meta_write "${target_session}" "isActive" "true"
+
+        mcmanager_client_session_start_init
+
+        local start_ec=$?
+        local session_dt_b=$(date '+%s.%N')
+
+        mcmanager_client_session_meta_write "${target_session}" "isActive" "false"
+        mcmanager_client_logger -i "Closing minecraft-launcher session ${target_session} (exit code ${start_ec})"
+        mcmanager_client_logger -i "Session start time ..... ${session_dt_a}"
+        mcmanager_client_logger -i "Session finish time .... ${session_dt_b}"
+
+        cd "${here_now}"
+
+        return $start_ec
+    }
+
+    function mcmanager_client_session_start_specific() {
+        # Start a specific minecraft-launcher session
+        ## Required input: <session_number>
+
+        function mcmanager_client_session_start_specific_init() {
+            minecraft-launcher --lockDir "${session_lock}" --workDir "${session_work}" 2>&1 \
+                | ts "%.s000|${_b}|${_c}|${_d}|${_e}" \
+                | sed -u '/[[:blank:]]\{1,\}$/d' \
+                | tee -a "${log_path}"
+
+            if [[ "${PIPESTATUS[@]}" =~ 1 ]]; then local run_ec=1; else local run_ec=0; fi
+
+            return $run_ec
+        }
+
+        local session_dt_a=$(date '+%s.%N')
+        local target_session="${1}"
+        local start_ec=2
+
+        # Build verbosity and logging strings
+        # Sending piped outputs through the logger function results in non-updating
+        # date-time strings in log and verbosity messages.
+        local run_time="$(date '+%s.%N')"
+        local log_dir="${sh_logs}"
+        local log_name="${run_time:0:4}"
+        local log_file="${log_name}.log"
+        local log_path="${log_dir}/${log_file}"
+        ## Build the log/verbosity message: ${_a}|${_b}|${_c}|${_d}|${_e}
+        ##
+        ##  _a = Unix timestamp with miliseconds
+        ##  _b = Seven-place zerobuffered system process ID (${PPID})
+        ##  _c = Primary process name (usually the name of a bash script)
+        ##  _d = Type (E=error, I=info, S=success, W=warning)
+        ##  _e = Stack trace and/or message data
+        ##
+        #local _a="${run_time}"  ##==> auto filled in real time by ts
+        local _b=$(printf '%07d\n' "${PPID}")
+        local _c="${sh_file}"
+        local _d=I
+        local _e="minecraft-launcher:"
+
+        if [[ "x${target_session}" == "x" ]]; then
+            mcmanager_client_logger -e "ERROR: Missing required input: <session_number>"
+
+            return 1
+        fi
+
+        cd "${PROJ_D_CLIENT_LIVE}"
+
+        local isactive_value=$(mcmanager_client_session_meta_read "${target_session}" "isActive")
+
+        if [[ "${isactive_value}" == "true" ]]; then
+            mcmanager_client_logger -w "WARNING: The specified session is already in an active state: (${target_session})"
+            
+            cd "${here_now}"
+
+            return 1
+        else
+            mcmanager_client_logger -i "The requested minecraft-launcher session is inactive and ready to use (${target_session})"
+        fi
+
+        local session_lock=$(readlink -f "${target_session}")
+        local session_work=$(readlink -f "${target_session}/work")
+
+        mcmanager_client_logger -i "Setting minecraft-launcher parameter: lockDir=${session_lock}"
+        mcmanager_client_logger -i "Setting minecraft-launcher parameter: workDir=${session_work}"
+        mcmanager_client_logger -i "Setting sessionmeta to an active state and starting the session ..."
+
+        mcmanager_client_session_meta_write "${target_session}" "previouslyUsed" "true"
+        mcmanager_client_session_meta_write "${target_session}" "lastUsedTime" "$(date '+%s')"
+        mcmanager_client_session_meta_write "${target_session}" "isActive" "true"
+
+        mcmanager_client_session_start_specific_init
+
+        local start_ec=$?
+        local session_dt_b=$(date '+%s.%N')
+
+        mcmanager_client_session_meta_write "${target_session}" "isActive" "false"
+        mcmanager_client_logger -i "Closing minecraft-launcher session ${target_session} (exit code ${start_ec})"
+        mcmanager_client_logger -i "Session start time ..... ${session_dt_a}"
+        mcmanager_client_logger -i "Session finish time .... ${session_dt_b}"
+
+        cd "${here_now}"
+
+        return $start_ec
+    }
+
+    function mcmanager_client_setup() {
+        # Set up local session storage locations for minecraft-launcher
+        local sessions_total="${#live_sessions[@]}"
+        local sessions_counter=1
+
+        mcmanager_client_logger -i "Setting up minecraft-launcher client environment"
+
+        cd "${PROJ_D_CLIENT_LIVE}"
+
+        for i in "${live_sessions[@]}"; do
+            local session_dir_base="${i}"
+            local session_dir_work="${session_dir_base}/work"
+            local session_meta="${i}.sessionmeta"
+
+            mkdir -p "${session_dir_base}"
+            mkdir -p "${session_dir_work}"
+
+            if [[ ! -f "${session_meta}" ]]; then
+                mcmanager_client_logger -i "Creating new minecraft-launcher session metadata and storage (${sessions_counter} of ${sessions_total})"
+                mcmanager_client_session_meta_base > "${session_meta}"
+            fi
+
+            let sessions_counter=sessions_counter+1
+        done
+
+        cd "${here_now}"
+
+        mcmanager_client_logger -i "Done"
+
+        return $?
+    }
+
     function _init() {
         # The core library function called whenever the library is sourced
         source "${main_lib}"
+
+        mcmanager_client_setup
+
+        mcmanager_client_logger -i "client.lib initialization completed for sub-process: ${0}"
 
         return $?
     }
@@ -46,6 +473,10 @@
         main_dir=$(readlink -f "${sh_base}/../main")
         main_dir_lib="${main_dir}/lib"
         main_lib="${main_dir_lib}/main.lib"
+    
+    ## client specific variables
+    ##
+        declare -a live_sessions=( $(seq 1 1 9) )
 
 #_______________________________________________________________________________
 # Execute operations

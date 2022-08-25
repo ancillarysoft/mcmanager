@@ -120,5 +120,9 @@ dist
 #-------------------------------------------------------------------------------
 
 *.bak
-client/src/
-server/src/
+client/src/forge/*
+client/src/minecraft-launcher/*
+client/src/optifine/*
+client/src/seus-renewed/*
+client/live/*
+server/src/*

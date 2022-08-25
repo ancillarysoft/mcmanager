@@ -1,11 +1,70 @@
 {
     "meta": {
-        "updated": "20220822"
+        "updated": "20220823"
     },
     "data": [
         {
+            "title":"Minecraft Launcher (Java Edition)",
+            "flavor":"Debian-based",
             "version":null,
-            "link":null
+            "link":"https://launcher.mojang.com/download/Minecraft.deb",
+            "sha256":"b8764d9bfbcbe69582aaa269469bebaddb49dda44e747b7030dd8560667ae5c8"
+        },
+        {
+            "title":"Minecraft Launcher (Java Edition)",
+            "flavor":"Arch-based",
+            "version":null,
+            "link":"https://aur.archlinux.org/cgit/aur.git/snapshot/minecraft-launcher.tar.gz",
+            "sha256":"ceacd6a29170d28e42e00b36b4ccbd3d166427316c815a004559fdfc90faae63"
+        },
+        {
+            "title":"Minecraft Launcher (Java Edition)",
+            "flavor":"Generic Linux-based",
+            "version":null,
+            "link":"https://launcher.mojang.com/download/Minecraft.tar.gz",
+            "sha256":"cd9f0b44fc9cec42829cb2e71145ee599f3d34c7715b55963514d0a8d36214ab"
+        },
+        {
+            "title":"Minecraft Launcher (Java Edition - Version Specific)",
+            "flavor":"Linux",
+            "version":"1.0.1221",
+            "link":"https://launcher.mojang.com/download/linux/x86_64/minecraft-launcher_1.0.1221.tar.gz",
+            "sha256":"cd9f0b44fc9cec42829cb2e71145ee599f3d34c7715b55963514d0a8d36214ab"
+        },
+        {
+            "title":"Minecraft Launcher (Java Edition)",
+            "flavor":"Windows 10 and 11",
+            "version":null,
+            "link":"https://launcher.mojang.com/download/MinecraftInstaller.exe",
+            "sha256":"2b0e05e169643319074f306153e55f2d839adb0378d6e721c04198233b892bfa"
+        },
+        {
+            "title":"Minecraft Launcher (Java Edition)",
+            "flavor":"Windows 7 and 8",
+            "version":null,
+            "link":"https://launcher.mojang.com/download/MinecraftInstaller.msi",
+            "sha256":"8a058a12d69d1091913694ae51624d84c560aa919efdb0f3daf838c7674bed53"
+        },
+        {
+            "title":"Minecraft Launcher (Java Edition)",
+            "flavor":"MacOS",
+            "version":null,
+            "link":"https://launcher.mojang.com/download/Minecraft.dmg",
+            "sha256":"887e7e103304cca27f1bbca9a97eb20de5847f571b4e9d57590bbc76d1464714"
+        },
+        {
+            "title":"Minecraft Launcher Icon (Java Edition)",
+            "flavor":null,
+            "version":null,
+            "link":"https://launcher.mojang.com/download/minecraft-launcher.svg",
+            "sha256":"35c2bcaeb09fa4b8864e9422fd66bf60847706f8b4400ec4a66ba6436b101f71"
+        },
+        {
+            "title":"Minecraft Launcher (Java Edition Metadata)",
+            "flavor":"Linux",
+            "version":null,
+            "link":"https://launchermeta.mojang.com/v1/products/launcher/6f083b80d5e6fabbc4236f81d0d8f8a350c665a9/linux.json",
+            "sha256":"9e3a9d19852d9c735aa6533b5714e7d03753346f8bb0d149fddb9190471cf046"
         }
     ]
 }
